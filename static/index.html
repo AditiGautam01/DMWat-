@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DMWat</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@700;800;900&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons for modern sleek icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar glass-panel">
+            <div class="sidebar-header" onclick="app.switchView('welcome')" style="cursor: pointer;">
+                <h2>DMWat</h2>
+                <span class="badge">watsonx.ai</span>
+            </div>
+            
+            <div class="nav-links" style="margin-bottom: 24px;">
+                <div class="table-item" onclick="app.switchView('pipeline')">
+                    <i class="ph ph-flow-arrow"></i> Unified Pipeline
+                </div>
+            </div>
+            
+            <div class="db-status">
+                <div class="status-indicator active"></div>
+                <span>Connected to SAMPLE</span>
+            </div>
+
+            <div class="tables-container">
+                <h3><i class="ph ph-table"></i> Db2 Tables</h3>
+                <div id="table-list" class="table-list">
+                    <div class="loading-tables">
+                        <i class="ph ph-spinner-gap spin"></i> Loading schema...
+                    </div>
+                </div>
+            </div>
+
+
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-nav glass-panel">
+                <h1 id="active-entity">Select a table to begin</h1>
+                <div class="actions">
+                    <button class="btn primary" id="btn-sql-mode">
+                        <i class="ph ph-terminal-window"></i> Free SQL Gen
+                    </button>
+                </div>
+            </header>
+
+            <div class="workspace">
+                <!-- Welcome State -->
+                <div id="view-welcome" class="view-state active">
+                    <div class="welcome-card glass-panel">
+                        <div class="welcome-icon">
+                            <i class="ph ph-sparkle"></i>
+                        </div>
+                        <h2>AI-Powered Database Analytics</h2>
+                        <p>Select a table from the sidebar to summarize data, ask natural language questions, or generate SQL queries automatically using the IBM Granite model.</p>
+                        <div style="margin-top: 32px;">
+                            <button class="btn primary" onclick="app.switchView('pipeline')" style="border:none; padding: 14px 28px; font-size: 1.1rem; border-radius: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-weight: 600; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                                <i class="ph ph-flow-arrow" style="font-size: 1.4rem;"></i> Launch Unified Pipeline
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table View State -->
+                <div id="view-table" class="view-state">
+                    <div class="operation-cards">
+                        <div class="op-card glass-panel" onclick="app.summarizeTable()">
+                            <div class="op-icon"><i class="ph ph-file-text"></i></div>
+                            <h3>Summarize Data</h3>
+                            <p>Generate an AI overview of the data in this table.</p>
+                        </div>
+                        <div class="op-card glass-panel" onclick="app.focusQuestion()">
+                            <div class="op-icon"><i class="ph ph-chat-teardrop-text"></i></div>
+                            <h3>Ask Question</h3>
+                            <p>Query the data using natural language.</p>
+                        </div>
+                    </div>
+
+                    <!-- Q&A Input Area -->
+                    <div class="qna-section glass-panel">
+                        <div class="input-wrapper">
+                            <i class="ph ph-magnifying-glass"></i>
+                            <input type="text" id="input-question" placeholder="Ask a question about this table (e.g. 'Who is the highest paid?')">
+                            <button class="btn primary" onclick="app.askQuestion()">Ask AI</button>
+                        </div>
+                    </div>
+
+                    <!-- Maximo Live Stream Panel -->
+                    <div id="stream-panel" class="glass-panel hidden" style="padding: 20px; margin-bottom: 24px;">
+                        <div class="stream-controls">
+                            <button class="btn stream" onclick="app.startStream()">
+                                <i class="ph ph-play"></i> Start Stream
+                            </button>
+                            <button class="btn stream stop" onclick="app.stopStream()">
+                                <i class="ph ph-stop"></i> Stop
+                            </button>
+                            <div id="stream-live-indicator" class="live-indicator hidden">
+                                <span class="dot"></span> LIVE
+                            </div>
+                            <div id="stream-counter" class="stream-counter">Ready to stream</div>
+                        </div>
+                        <div id="stream-feed" class="stream-feed">
+                            <!-- Streamed records appear here -->
+                        </div>
+                    </div>
+
+                    <!-- Results Area -->
+                    <div id="results-area" class="results-area hidden">
+                        <div class="result-card glass-panel">
+                            <div class="result-header">
+                                <h3 id="result-title">Result</h3>
+                                <div id="loading-indicator" class="hidden">
+                                    <i class="ph ph-spinner-gap spin"></i> Thinking...
+                                </div>
+                            </div>
+                            <div class="result-content markdown-body" id="result-content"></div>
+                            
+                            <div class="data-preview" id="data-preview-container">
+                                <h4>Data Context Used</h4>
+                                <div class="table-responsive" id="data-preview-table"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SQL Gen View State -->
+                <div id="view-sql" class="view-state">
+                    <div class="sql-gen-card glass-panel">
+                        <div class="card-header">
+                            <div class="welcome-icon small"><i class="ph ph-magic-wand"></i></div>
+                            <h2>Natural Language to SQL</h2>
+                        </div>
+                        <p>Describe what you want to query across the entire database. The AI will read the schema, write the SQL, and execute it.</p>
+                        
+                        <div class="sql-input-wrapper">
+                            <textarea id="input-sql" placeholder="e.g. 'Show me the average salary by department, ordered from highest to lowest'"></textarea>
+                            <button class="btn primary large" onclick="app.generateSql()">
+                                <i class="ph ph-play"></i> Generate & Run SQL
+                            </button>
+                        </div>
+
+                        <div id="sql-results-area" class="results-area hidden">
+                            <div class="result-card glass-panel">
+                                <div class="result-header">
+                                    <h3>SQL Execution</h3>
+                                    <div id="loading-indicator-sql" class="hidden">
+                                        <i class="ph ph-spinner-gap spin"></i> Processing...
+                                    </div>
+                                </div>
+                                <div class="sql-code-block" id="generated-sql-block"></div>
+                                <div class="table-responsive" id="sql-execution-results"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Unified Pipeline View State -->
+                <div id="view-pipeline" class="view-state">
+                    <div class="pipeline-card glass-panel">
+                        <div class="card-header">
+                            <div class="welcome-icon small" style="background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 50%, #10b981 100%); color: white;">
+                                <i class="ph ph-flow-arrow"></i>
+                            </div>
+                            <div>
+                                <h2>Unified Pipeline</h2>
+                                <p style="margin:4px 0 0 0; font-size:0.85rem;">Db2 → Maximo → watsonx.ai</p>
+                            </div>
+                        </div>
+
+                        <!-- Pipeline config -->
+                        <div class="pipeline-config">
+                            <div class="pipeline-field">
+                                <label><i class="ph ph-database"></i> Db2 Source Table</label>
+                                <select id="pipeline-table">
+                                    <!-- populated by JS -->
+                                </select>
+                            </div>
+                            <div class="pipeline-field">
+                                <label><i class="ph ph-wrench"></i> Maximo Entity</label>
+                                <select id="pipeline-entity">
+                                    <option value="workorders">Work Orders</option>
+                                    <option value="assets">Assets</option>
+                                    <option value="service_requests">Service Requests</option>
+                                </select>
+                            </div>
+                            <div class="pipeline-field full-width">
+                                <label><i class="ph ph-chat-teardrop-text"></i> Question for watsonx.ai</label>
+                                <textarea id="pipeline-question" placeholder="e.g. 'Which employees have the most critical open work orders?'"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="pipeline-actions">
+                            <button class="btn primary" onclick="app.streamPipeline()">
+                                <i class="ph ph-broadcast"></i> 1. Stream Data
+                            </button>
+                            <button class="btn primary" id="btn-ask-watsonx" onclick="app.runPipeline()" style="border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600;">
+                                <i class="ph ph-brain"></i> 2. Submit to watsonx.ai
+                            </button>
+                            <div id="pipeline-loading" class="hidden" style="color: #c084fc; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+                                <i class="ph ph-spinner-gap spin"></i> Processing with watsonx.ai...
+                            </div>
+                        </div>
+
+                        <!-- Pipeline progress steps -->
+                        <div id="pipeline-steps" class="pipeline-steps hidden">
+                            <div class="step" id="step-db2">
+                                <div class="step-icon"><i class="ph ph-database"></i></div>
+                                <div class="step-label">Db2 Query</div>
+                                <div class="step-status" id="step-db2-status">waiting</div>
+                            </div>
+                            <div class="step-arrow"><i class="ph ph-arrow-right"></i></div>
+                            <div class="step" id="step-maximo">
+                                <div class="step-icon"><i class="ph ph-wrench"></i></div>
+                                <div class="step-label">Maximo Enrich</div>
+                                <div class="step-status" id="step-maximo-status">waiting</div>
+                            </div>
+                            <div class="step-arrow"><i class="ph ph-arrow-right"></i></div>
+                            <div class="step" id="step-watsonx">
+                                <div class="step-icon"><i class="ph ph-brain"></i></div>
+                                <div class="step-label">watsonx.ai</div>
+                                <div class="step-status" id="step-watsonx-status">waiting</div>
+                            </div>
+                        </div>
+
+                        <!-- Streaming feeds -->
+                        <div id="pipeline-feeds" class="pipeline-feeds hidden">
+                            <div class="feed-column">
+                                <h4><i class="ph ph-database"></i> Db2 Rows</h4>
+                                <div id="pipeline-db2-feed" class="stream-feed"></div>
+                            </div>
+                            <div class="feed-column">
+                                <h4><i class="ph ph-wrench"></i> Maximo Records</h4>
+                                <div id="pipeline-maximo-feed" class="stream-feed"></div>
+                            </div>
+                        </div>
+
+                        <!-- AI Answer -->
+                        <div id="pipeline-answer" class="pipeline-answer hidden">
+                            <div class="result-header">
+                                <h3><i class="ph ph-brain"></i> watsonx.ai Analysis</h3>
+                            </div>
+                            <div id="pipeline-answer-content" class="result-content"></div>
+                        </div>
+
+                        <!-- Data tables -->
+                        <div id="pipeline-data" class="hidden" style="margin-top: 24px;">
+                            <div class="data-preview">
+                                <h4>Db2 Source Rows</h4>
+                                <div class="table-responsive" id="pipeline-db2-table"></div>
+                            </div>
+                            <div class="data-preview" style="margin-top:16px;">
+                                <h4>Maximo Enriched Records</h4>
+                                <div class="table-responsive" id="pipeline-maximo-table"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Animated background layers -->
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+    <div class="bg-shape shape-3"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
